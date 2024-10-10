@@ -6,13 +6,14 @@ class Main():
         self.width = 500
         self.height = 500
         self.tiles = 100
+        self.bombs = 10
         self.tiles_w = int(math.sqrt(self.tiles))
         self.atlas = pygame.transform.scale(pygame.image.load('texture_atlas.png'), (200,200)) 
         self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption('MineSweeper')
         self.clock = pygame.time.Clock()
-        self.board = [[0] * 10 for _ in range(10)]
-        self.values = [[0] * 10 for _ in range(10)]
+        self.board = [[None] * 10 for _ in range(10)]
+        self.values = [[None] * 10 for _ in range(10)]
         self.found = []
         self.first_tile = False
 
@@ -30,7 +31,7 @@ class Main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                quit(0)
+                quit()
 
             if event.type == pygame.MOUSEBUTTONDOWN: # x,y (59,39)
                 x_pos, y_pos = pygame.mouse.get_pos()
@@ -44,18 +45,18 @@ class Main():
         pass
     def create_board(self, first_tile_x, first_tile_y):
         # 1. clicked tile
-        self.board[first_tile_y][first_tile_x] = 'found'
+        self.board[first_tile_y][first_tile_x] = 0
 
         # 2. tiles around (safe zone)
         neighbors = self.neighbors(first_tile_x, first_tile_y, 'all')
-        for n in neighbors: self.found.append(n)
-
-        for i in range(len(neighbors)):
-            self.board[neighbors[i][0]][neighbors[i][1]] = 'found'
-
+        for n in neighbors:
+            self.board[n[1]][n[0]] = 0
+            self.found.append(n)
+        print(neighbors)
+    
         # 3. place bombs
-        zero_positions = [(i, j) for i in range(len(self.board)) for j in range(len(self.board[i])) if self.board[i][j] == 0]
-        bombs = random.sample(zero_positions, 15)
+        zero_positions = [(i, j) for i in range(len(self.board)) for j in range(len(self.board[i])) if self.board[i][j] == None]
+        bombs = random.sample(zero_positions, self.bombs)
         for pos in bombs:
             self.board[pos[0]][pos[1]] = 'B'
         
@@ -66,26 +67,33 @@ class Main():
                 n = self.neighbors(i, j, 'all')
                 
                 for cell in range((len(n))):
-                    if self.board[n[cell][0]][n[cell][1]] == 'B':
+                    if self.board[n[cell][0]][n[cell][1]] == 'B' and self.board[i][j] != 'B':
                         value += 1
-                self.values[j][i] = value
+                    elif self.board[i][j] == 'B':
+                        self.values[i][j] = 'B'
+                if value != None:
+                    self.values[i][j] = value
 
         # 5. change surounding cells
-        for cell in self.found:
-            n = self.neighbors(cell[0], cell[1], 'cross') # neighbor
-            for z in n:
-                n_n = self.neighbors(z[0], z[1], 'all')
-            
-                for n_n_n in n_n:
-                    if self.board[n_n_n[0]][n_n_n[1]] == 'B':
-                        break
-                    else: 
-                        self.board[n_n_n[0]][n_n_n[1]] = 'found'
-                        self.found.append(n_n_n)
+            for cell in self.found: # cell = found tile ex. tile (2,2)
+                n = self.neighbors(cell[0], cell[1], 'cross') # neighbor (3,0)
+                if n != []:
+                    for z in n: # z = neighbor of found tile
+                        if self.values[z[0]][z[1]] == None and z not in self.found:
+                            self.board[z[0]][z[1]] = None
+                            self.found.append(z)
+        
+
+                            
+                    
+                    
+
+                
+        print(self.board)
+        print(self.values)        
+                
         # 6. give outblocks numbers
 
-                if self.board[z[0]][z[1]] != 'found':
-                
             
 
         
@@ -97,24 +105,23 @@ class Main():
         neighbors = []  
 
         if patern == "all":
-            for c in range(y_pos - 1, y_pos + 2):
-                for r in range(x_pos - 1, x_pos + 2):
+            for r in range(y_pos - 1, y_pos + 2):
+                for c in range(x_pos - 1, x_pos + 2):
                     if self.is_in_bounds(r, c) and (r, c) != (x_pos, y_pos):
                         neighbors.append((c, r))
         if patern == "cross":
             for r in range(x_pos - 1, x_pos + 2):
                 for c in range(y_pos - 1, y_pos + 2):
-                    if self.is_in_bounds(r, c) and (r, c) != (x_pos, y_pos) and self.board[c][r] != 'found':
+                    if self.is_in_bounds(r, c) and (r, c) != (x_pos, y_pos) and self.board[c][r] != None:
                         if r == x_pos or c == y_pos:
                             neighbors.append((c, r))
         
         return neighbors
         
-        print(neighbors)
     def crop(self, item):
         if isinstance(item, int):
             if item == 0:
-                return (50,100,50,50)
+                return (0,0, 50, 50)
             elif item <= 3:
                 return (50*item,0,50, 50)
             elif item <= 7:
@@ -126,12 +133,9 @@ class Main():
                 return (100,100,50,50)
             elif item == 'B':
                 return (0,150,50,50)
-            elif item == 'found':
-                return(0,0,50,50)
-
-                
-
-        
+            elif item == None:
+                return (50,100,50,50)
+  
     def draw(self):
         self.screen.fill((225,225,225))
         for i in range(self.tiles_w):
